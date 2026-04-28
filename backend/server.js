@@ -1,17 +1,17 @@
-const express=require("express");
-const cors=require("cors");
-const sqlite3=require("sqlite3").verbose();
-const crypto=require("crypto");
+const express = require("express");
+const cors = require("cors");
+const Database = require("better-sqlite3");
+const db = new Database("expenses.db");
+const crypto = require("crypto");
 
-const app=express();
+const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const db=new sqlite3.Database("./expenses.db");
+const db = new sqlite3.Database("./expenses.db");
 
-db.serialize(()=>{
-db.run(`
+db.exec(`
 CREATE TABLE IF NOT EXISTS expenses(
 id TEXT PRIMARY KEY,
 amount REAL,
@@ -21,86 +21,72 @@ date TEXT,
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 idempotencyKey TEXT UNIQUE
 )
-`)
-});
+`);
 
-function key(body){
-return crypto.createHash("sha256")
-.update(
-JSON.stringify({
-amount:body.amount,
-category:body.category,
-description:body.description,
-date:body.date
-})
-).digest("hex");
+function key(body) {
+    return crypto.createHash("sha256")
+        .update(
+            JSON.stringify({
+                amount: body.amount,
+                category: body.category,
+                description: body.description,
+                date: body.date
+            })
+        ).digest("hex");
 }
 
-app.get("/",(req,res)=>{
-res.send("API Running");
+app.get("/", (req, res) => {
+    res.send("API Running");
 });
 
-app.post("/expenses",(req,res)=>{
+app.post('/expenses',(req,res)=>{
 
 const {amount,category,description,date}=req.body;
 
-if(!amount || amount<=0)
- return res.status(400).json({error:"invalid amount"});
-
 const idem=key(req.body);
 
-db.get(
-"SELECT * FROM expenses WHERE idempotencyKey=?",
-[idem],
-(err,row)=>{
+const existing=db.prepare(
+'SELECT * FROM expenses WHERE idempotencyKey=?'
+).get(idem);
 
-if(row){
-return res.json(row);
+if(existing){
+return res.json(existing);
 }
 
-db.run(
-`INSERT INTO expenses
+db.prepare(`
+INSERT INTO expenses
 (id,amount,category,description,date,idempotencyKey)
-VALUES(?,?,?,?,?,?)`,
-[
+VALUES(?,?,?,?,?,?)
+`).run(
 crypto.randomUUID(),
 amount,
 category,
 description,
 date,
 idem
-],
-function(err){
-if(err) return res.status(500).json(err);
+);
 
-res.status(201).json({
-message:"created"
-});
-}
-)
-
-}
-)
+res.status(201).json({message:'created'});
 
 });
 
-app.get("/expenses",(req,res)=>{
+app.get('/expenses',(req,res)=>{
 
-let sql="SELECT * FROM expenses";
-let params=[];
+let rows;
 
-if(req.query.category && req.query.category!=="All"){
-sql+=" WHERE category=?";
-params.push(req.query.category);
+if(req.query.category && req.query.category!=='All'){
+rows=db.prepare(
+'SELECT * FROM expenses WHERE category=? ORDER BY date DESC'
+).all(req.query.category);
+}
+else{
+rows=db.prepare(
+'SELECT * FROM expenses ORDER BY date DESC'
+).all();
 }
 
-sql+=" ORDER BY date DESC";
-
-db.all(sql,params,(err,rows)=>{
-if(err) return res.status(500).json(err);
 res.json(rows);
-})
 
-})
+});
 
-app.listen(process.env.PORT||5000)
+app.listen(process.env.PORT || 5000)
