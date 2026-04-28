@@ -1,4 +1,4 @@
 import axios from 'axios'
 export default axios.create({
-baseURL:'http://localhost:5000'
+baseURL:'https://expense-tracker-vf17.onrender.com'
 })
