@@ -1,0 +1,19 @@
+{
+ "name":"expense-frontend",
+ "private":true,
+ "version":"1.0.0",
+ "type":"module",
+ "scripts":{
+   "dev":"vite",
+   "build":"vite build"
+ },
+ "dependencies":{
+   "axios":"latest",
+   "react":"latest",
+   "react-dom":"latest"
+ },
+ "devDependencies":{
+   "vite":"latest",
+   "@vitejs/plugin-react":"latest"
+ }
+}
